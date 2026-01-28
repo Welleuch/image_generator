@@ -1,13 +1,14 @@
-# Dockerfile for GPU Endpoint
-FROM runpod/base:0.4.0-cuda11.8
+# Dockerfile - ComfyUI on RunPod
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    python3.10-dev \
     git \
     wget \
     curl \
-    python3-pip \
-    python3-dev \
     libgl1-mesa-glx \
     libglib2.0-0 \
     libsm6 \
@@ -15,46 +16,49 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first (for better caching)
-COPY requirements.txt /workspace/requirements.txt
+# Set Python 3.10 as default
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
 
-# Install Python packages
-RUN pip install --no-cache-dir -r /workspace/requirements.txt
+# Create workspace
+WORKDIR /workspace
 
 # Clone ComfyUI
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git
 
 # Install ComfyUI requirements
 WORKDIR /workspace/ComfyUI
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Install GGUF custom nodes
-RUN git clone https://github.com/ssitu/ComfyUI_gguf /workspace/ComfyUI/custom_nodes/ComfyUI_gguf
+# Install ComfyUI GGUF nodes
+RUN git clone https://github.com/ssitu/ComfyUI_gguf custom_nodes/ComfyUI_gguf
 WORKDIR /workspace/ComfyUI/custom_nodes/ComfyUI_gguf
-RUN pip install -r requirements.txt
+RUN pip3 install -r requirements.txt
 
-# Copy application files
+# Copy our handler
 WORKDIR /workspace
-COPY handler.py /workspace/
-COPY workflow_api.py /workspace/
+COPY handler.py .
+COPY comfy_api.py .
 
-# Create directories
+# Create model directories
 RUN mkdir -p /workspace/ComfyUI/models/checkpoints
 RUN mkdir -p /workspace/ComfyUI/models/clip
 RUN mkdir -p /workspace/ComfyUI/models/vae
+RUN mkdir -p /workspace/ComfyUI/models/unet
 RUN mkdir -p /workspace/ComfyUI/output
 
-# Symlink volume for models
-RUN ln -sf /runpod-volume/z-image-turbo-Q8_0.gguf /workspace/ComfyUI/models/checkpoints/
+# Create symlinks to volume models
+RUN ln -sf /runpod-volume/z-image-turbo-Q8_0.gguf /workspace/ComfyUI/models/unet/
 RUN ln -sf /runpod-volume/Qwen3-4B-Q4_K_M.gguf /workspace/ComfyUI/models/clip/
 RUN ln -sf /runpod-volume/ae.safetensors /workspace/ComfyUI/models/vae/
 
-# Set environment variables
+# Set environment
 ENV PYTHONUNBUFFERED=1
-ENV HF_HOME=/workspace/cache
 
-# Expose port for ComfyUI
+# Expose ComfyUI port
 EXPOSE 8188
 
-# Start handler
-CMD ["python", "-u", "handler.py"]
+# Start the server and handler
+COPY start.sh /workspace/
+RUN chmod +x /workspace/start.sh
+CMD ["/workspace/start.sh"]

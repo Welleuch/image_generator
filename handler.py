@@ -1,35 +1,15 @@
-# handler.py - GPU Endpoint Main Handler
+# handler.py
 import runpod
-from workflow_api import ComfyUIAPI
-import os
+from comfy_api import ComfyUIClient
 import time
 
 print("=" * 60)
 print("🚀 COMFYUI IMAGE GENERATION ENDPOINT")
+print("Model: z-image-turbo (8 steps, cfg=1)")
 print("=" * 60)
 
-# Initialize ComfyUI API
-comfy = None
-
-def start_comfyui():
-    """Start ComfyUI server in background"""
-    import subprocess
-    import threading
-    
-    def run_comfyui():
-        subprocess.run([
-            "python", "/workspace/ComfyUI/main.py",
-            "--listen", "0.0.0.0",
-            "--port", "8188"
-        ])
-    
-    # Start in background thread
-    thread = threading.Thread(target=run_comfyui, daemon=True)
-    thread.start()
-    
-    # Wait for server to start
-    time.sleep(10)
-    print("✅ ComfyUI server started")
+# Initialize ComfyUI client
+comfy = ComfyUIClient("127.0.0.1:8188")
 
 def handler(job):
     """Main handler function"""
@@ -42,11 +22,18 @@ def handler(job):
         if not prompt:
             return {"error": "No prompt provided"}
         
+        # Optional parameters
+        seed = input_data.get("seed")
+        if seed:
+            seed = int(seed)
+        
         print(f"📝 Prompt: {prompt[:100]}...")
+        if seed:
+            print(f"🌱 Seed: {seed}")
         
         # Generate image
         start_time = time.time()
-        result = comfy.generate_image(prompt)
+        result = comfy.generate_image(prompt, seed)
         generation_time = time.time() - start_time
         
         print(f"✅ Image generated in {generation_time:.2f} seconds")
@@ -54,8 +41,11 @@ def handler(job):
         return {
             "status": "success",
             "image_base64": result["image_base64"],
+            "dimensions": result["dimensions"],
             "generation_time": f"{generation_time:.2f}s",
-            "dimensions": result["dimensions"]
+            "model": "z-image-turbo",
+            "steps": 8,
+            "cfg": 1
         }
         
     except Exception as e:
@@ -64,14 +54,6 @@ def handler(job):
         traceback.print_exc()
         return {"error": str(e)}
 
-# Start ComfyUI server on init
-print("🔧 Starting ComfyUI server...")
-start_comfyui()
-
-# Initialize API client
-comfy = ComfyUIAPI("127.0.0.1:8188")
-
-print("\n🏁 GPU Endpoint Ready!")
-print("Waiting for image generation requests...")
-
+print("\n🏁 ComfyUI Image Generator Ready!")
+print("Using your exact workflow: z-image-turbo, 8 steps, cfg=1")
 runpod.serverless.start({"handler": handler})
