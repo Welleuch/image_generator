@@ -1,13 +1,13 @@
 #!/bin/bash
 # start.sh
 
-# Start ComfyUI in background
-cd /workspace/ComfyUI
-python3 main.py --listen 0.0.0.0 --port 8188 &
+# Start ComfyUI server (using RunPod's setup)
+cd /workspace/comfyui-worker
+python main.py &
 
 # Wait for server to start
-sleep 10
+sleep 15
 
-# Start RunPod handler
+# Start our handler
 cd /workspace
-python3 handler.py
+python handler.py
