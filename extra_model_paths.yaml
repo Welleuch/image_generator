@@ -1,0 +1,7 @@
+runpod:
+    base_path: /runpod-volume/
+    checkpoints: ./
+    unet: ./
+    clip: ./
+    vae: ./
+    # This ensures it scans the root of the volume for your .gguf files

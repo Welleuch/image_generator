@@ -1,43 +1,12 @@
-# Dockerfile - Based on their template
-FROM runpod/base:0.4.0
+FROM runpod/worker-comfyui:5.7.1-base
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    wget \
-    curl \
-    python3-pip \
-    python3-dev \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Copy our configuration files
+COPY extra_model_paths.yaml /comfyui/extra_model_paths.yaml
+COPY handler.py /handler.py
 
-# Clone RunPod's ComfyUI worker
-RUN git clone https://github.com/runpod-workers/worker-comfyui.git /workspace/comfyui-worker
-WORKDIR /workspace/comfyui-worker
+# Set the path config environment variable
+ENV COMFYUI_PATH_CONFIG=/comfyui/extra_model_paths.yaml
 
-# Install requirements from their template
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy our custom files
-COPY handler.py /workspace/
-COPY comfy_api.py /workspace/
-COPY start.sh /workspace/
-
-# Install our requirements
-WORKDIR /workspace
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Create directories for models
-RUN mkdir -p /workspace/models
-
-# Set environment
-ENV PYTHONUNBUFFERED=1
-
-# Start script
-RUN chmod +x /workspace/start.sh
-CMD ["/workspace/start.sh"]
+# The Start Command will create symlinks before starting the handler
+# This connects the custom_nodes from your Volume to the internal ComfyUI
+CMD sh -c "ln -s /runpod-volume/custom_nodes/* /comfyui/custom_nodes/ && python -u /handler.py"
