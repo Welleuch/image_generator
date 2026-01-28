@@ -1,0 +1,18 @@
+# requirements.txt for GPU endpoint (new)
+runpod==1.4.2
+torch==2.2.0
+torchvision==0.17.0
+torchaudio==2.2.0
+--index-url https://download.pytorch.org/whl/cu118
+
+diffusers==0.26.3
+transformers==4.38.2
+accelerate==0.27.2
+safetensors==0.4.2
+
+Pillow==10.2.0
+requests==2.31.0
+aiohttp==3.9.3
+websockets==13.0
+
+# ComfyUI will install its own requirements
