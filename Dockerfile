@@ -1,12 +1,13 @@
 FROM runpod/worker-comfyui:5.7.1-base
 
-# Copy our configuration files
+# Copy config and the workflow file into the image
 COPY extra_model_paths.yaml /comfyui/extra_model_paths.yaml
+COPY workflow_api.json /comfyui/workflow_api.json
 COPY handler.py /handler.py
 
-# Set the path config environment variable
+# Set environment variables
 ENV COMFYUI_PATH_CONFIG=/comfyui/extra_model_paths.yaml
 
-# The Start Command will create symlinks before starting the handler
-# This connects the custom_nodes from your Volume to the internal ComfyUI
-CMD sh -c "ln -s /runpod-volume/custom_nodes/* /comfyui/custom_nodes/ && python -u /handler.py"
+# Create symlinks for nodes AND ensure the output goes to the volume
+# We use --output-directory to force ComfyUI to write to your NV
+CMD sh -c "mkdir -p /runpod-volume/output && ln -s /runpod-volume/custom_nodes/* /comfyui/custom_nodes/ && python -u /handler.py"
