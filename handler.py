@@ -1,100 +1,90 @@
+"""
+Z-Image RunPod Serverless Handler - UPDATED FOR WORKER
+"""
 
-import runpod
-import requests
-import json
 import os
+import runpod
+import torch
+import base64
 import time
-import boto3
-from botocore.config import Config
+from io import BytesIO
+from diffusers import ZImagePipeline
 
-# --- CONFIGURATION ---
-COMFY_URL = "http://127.0.0.1:8188"
-WORKFLOW_PATH = "/comfyui/workflow_api.json"
-OUTPUT_DIR = "/comfyui/output"
+# Global pipeline
+pipe = None
 
-# Cloudflare R2 Config
-R2_CONF = {
-    'endpoint': "https://d165cffd95013bf358b1f0cac3753628.r2.cloudflarestorage.com",
-    'access_key': "a2e07f81a137d0181c024a157367e15f",
-    'secret_key': "dca4b1e433bf208a509aea222778e45f666cc2c862f851842c3268c3343bb259", 
-    'bucket': "ai-gift-assets",
-    'public_url': "https://pub-518bf750a6194bb7b92bf803e180ed88.r2.dev"
-}
+def log(msg):
+    print(msg, flush=True)
 
-def wait_for_comfyui(timeout=120):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            requests.get(COMFY_URL)
-            return True
-        except:
-            time.sleep(5)
-    return False
-
-def upload_to_r2(file_path, file_name):
-    s3 = boto3.client('s3',
-        endpoint_url=R2_CONF['endpoint'],
-        aws_access_key_id=R2_CONF['access_key'],
-        aws_secret_access_key=R2_CONF['secret_key'],
-        config=Config(signature_version='s3v4')
-    )
-    s3.upload_file(file_path, R2_CONF['bucket'], file_name, ExtraArgs={'ContentType': 'image/png'})
-    return f"{R2_CONF['public_url']}/{file_name}"
-
-def handler(job):
-    if not wait_for_comfyui():
-        return {"error": "ComfyUI failed to start."}
-
-    job_input = job['input']
-    user_prompt = job_input.get("prompt")
+def init_model():
+    global pipe
+    log("--- 🚀 Z-Image Startup ---")
     
-    with open(WORKFLOW_PATH, 'r') as f:
-        workflow = json.load(f)
-
-    if user_prompt:
-        workflow["34:27"]["inputs"]["text"] = user_prompt
-    
-    file_prefix = f"gen_{int(time.time())}"
-    workflow["9"]["inputs"]["filename_prefix"] = file_prefix
-
     try:
-        # Clear old outputs
-        if os.path.exists(OUTPUT_DIR):
-            for f in os.listdir(OUTPUT_DIR):
-                os.remove(os.path.join(OUTPUT_DIR, f))
-
-        # Send job
-        response = requests.post(f"{COMFY_URL}/prompt", json={"prompt": workflow})
-        res_json = response.json()
+        t0 = time.time()
+        log("📥 Loading Z-Image Pipeline...")
         
-        # Check if ComfyUI rejected the prompt (e.g., missing nodes)
-        if "error" in res_json:
-            return {"error": "ComfyUI Prompt Error", "details": res_json["error"]}
-
-        # Wait for image
-        found_file = None
-        for _ in range(60):
-            if os.path.exists(OUTPUT_DIR):
-                files = [f for f in os.listdir(OUTPUT_DIR) if f.startswith(file_prefix)]
-                if files:
-                    found_file = os.path.join(OUTPUT_DIR, files[0])
-                    break
-            time.sleep(2)
-
-        if not found_file:
-            return {"error": "Timeout: Image not generated. Check logs for node errors."}
-
-        # Upload & Backup
-        r2_url = upload_to_r2(found_file, f"{file_prefix}.png")
-        volume_path = f"/runpod-volume/output/{file_prefix}.png"
+        pipe = ZImagePipeline.from_pretrained(
+            "Tongyi-MAI/Z-Image-Turbo",
+            torch_dtype=torch.bfloat16,
+            use_safetensors=True,
+            cache_dir="/runpod-volume/models",
+            device_map="auto"
+        )
         
-        os.makedirs("/runpod-volume/output", exist_ok=True)
-        with open(found_file, "rb") as f_in, open(volume_path, "wb") as f_out:
-            f_out.write(f_in.read())
-
-        return {"status": "success", "image_url": r2_url}
+        pipe.enable_attention_slicing()
+        log(f"✨ READY IN {time.time()-t0:.1f}s")
 
     except Exception as e:
+        log(f"❌ LOAD ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+
+def handler(job):
+    try:
+        job_input = job.get("input", {})
+        req_type = job_input.get("type", "GEN_IMAGE")
+        
+        if pipe is None: 
+            return {"error": "Pipeline not initialized"}
+        
+        prompt = job_input.get("visual_prompt") or job_input.get("prompt", "")
+        seed = job_input.get("seed", 42)
+        width = job_input.get("width", 1024)
+        height = job_input.get("height", 1024)
+        
+        log(f"🎨 Generating: {prompt[:50]}...")
+        
+        result = pipe(
+            prompt=prompt, 
+            width=width, 
+            height=height,
+            num_inference_steps=9, 
+            guidance_scale=0.0,
+            generator=torch.Generator("cpu").manual_seed(seed)
+        )
+        
+        # Convert to base64
+        buffer = BytesIO()
+        result.images[0].save(buffer, format="JPEG", quality=85)
+        image_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        
+        log("✅ Image generated successfully")
+        
+        # Return in the format Worker expects
+        return {
+            "image_base64": image_base64,
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "seed": seed
+        }
+            
+    except Exception as e:
+        log(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
         return {"error": str(e)}
 
+init_model()
 runpod.serverless.start({"handler": handler})
