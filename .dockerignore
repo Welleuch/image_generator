@@ -1,0 +1,34 @@
+# Ignore everything
+*
+
+# Except these files
+!Dockerfile
+!handler.py
+!extra_model_paths.yaml
+!workflow_api.json
+!.dockerignore
+
+# Ignore all model files
+*.gguf
+*.safetensors
+*.ckpt
+*.pth
+*.bin
+*.onnx
+
+# Ignore outputs and caches
+output/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.ipynb_checkpoints
+.venv
+env/
+venv/
+ENV/
+.git/
+.vscode/
+.idea/

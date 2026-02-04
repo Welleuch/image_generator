@@ -1,7 +1,7 @@
 {
   "9": {
     "inputs": {
-      "filename_prefix": "2026-01-27/zimg",
+      "filename_prefix": "output/ComfyUI",
       "images": [
         "34:8",
         0
@@ -58,7 +58,7 @@
   },
   "34:37": {
     "inputs": {
-      "unet_name": "z_image_turbo-Q8_0.gguf"
+      "unet_name": "z-image-turbo-q2_k.gguf"  // CHANGED: Your 3.37GB model
     },
     "class_type": "UnetLoaderGGUF",
     "_meta": {
@@ -78,7 +78,7 @@
   },
   "34:27": {
     "inputs": {
-      "text": "3D printable **Visual Description:** This object combines coffee culture and outdoor elements. It features a cat curled up near a cozy coffee table, with a gradient of coffee colors on the tabletop. The cat’s fur is made from a soft, gray material, resembling coffee beans. The scene is set outdoors with a view of trees and grass, symbolizing a café’s ambiance but with a playful twist. The coffee table is covered in coffee grounds and a small tablecloth.",
+      "text": "PLACEHOLDER_PROMPT",
       "clip": [
         "34:55",
         0
@@ -91,7 +91,7 @@
   },
   "34:3": {
     "inputs": {
-      "seed": 308992724190823,
+      "seed": 1337,
       "steps": 8,
       "cfg": 1,
       "sampler_name": "res_multistep",
@@ -121,7 +121,7 @@
   },
   "34:55": {
     "inputs": {
-      "clip_name": "Qwen3-4B-Q4_K_M.gguf",
+      "clip_name": "Qwen3-4B-Q4_K_M.gguf",  // KEEP: Current 2.5GB model
       "type": "lumina2"
     },
     "class_type": "CLIPLoaderGGUF",

@@ -4,4 +4,6 @@ runpod:
     unet: ./
     clip: ./
     vae: ./
-    # This ensures it scans the root of the volume for your .gguf files
+    # Add explicit paths for GGUF models
+    gguf_unet: ./
+    gguf_clip: ./
