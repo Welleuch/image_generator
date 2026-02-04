@@ -51,64 +51,98 @@ def upload_to_r2(file_path, file_name):
 def handler(job):
     print(f"🎬 Starting image generation job")
     
-    # First, wait for ComfyUI to be ready (with longer timeout)
+    # Wait for ComfyUI to be ready
     if not wait_for_comfyui(180):
         return {
-            "error": "ComfyUI failed to start within 3 minutes",
             "status": "failed",
-            "note": "Endpoint is cold-starting, please try again in 2 minutes"
+            "error": "ComfyUI failed to start",
+            "note": "Endpoint is cold-starting"
         }
     
     job_input = job['input']
-    user_prompt = job_input.get("prompt")
+    user_prompt = job_input.get("prompt", "")
     
-    print(f"📝 Prompt: {user_prompt[:100]}...")
-    workflow = json.load(f)
-
-    if user_prompt:
-        workflow["34:27"]["inputs"]["text"] = user_prompt
+    if not user_prompt:
+        return {"error": "No prompt provided"}
     
-    file_prefix = f"gen_{int(time.time())}"
-    workflow["9"]["inputs"]["filename_prefix"] = file_prefix
-
+    print(f"📝 Prompt: {user_prompt}")
+    
     try:
+        # Load workflow
+        with open("/comfyui/workflow_api.json", 'r') as f:
+            workflow = json.load(f)
+        
+        # Update prompt in workflow
+        if "34:27" in workflow and "inputs" in workflow["34:27"]:
+            workflow["34:27"]["inputs"]["text"] = user_prompt
+        
+        # Create unique filename
+        timestamp = int(time.time())
+        file_prefix = f"gen_{timestamp}"
+        workflow["9"]["inputs"]["filename_prefix"] = file_prefix
+
         # Clear old outputs
         if os.path.exists(OUTPUT_DIR):
             for f in os.listdir(OUTPUT_DIR):
                 os.remove(os.path.join(OUTPUT_DIR, f))
 
-        # Send job
-        response = requests.post(f"{COMFY_URL}/prompt", json={"prompt": workflow})
-        res_json = response.json()
+        # Send job to ComfyUI
+        print("Sending prompt to ComfyUI...")
+        response = requests.post(f"{COMFY_URL}/prompt", 
+                               json={"prompt": workflow}, 
+                               timeout=30)
         
-        # Check if ComfyUI rejected the prompt (e.g., missing nodes)
+        if response.status_code != 200:
+            return {"error": f"ComfyUI rejected prompt: {response.text}"}
+        
+        res_json = response.json()
         if "error" in res_json:
-            return {"error": "ComfyUI Prompt Error", "details": res_json["error"]}
+            return {"error": f"ComfyUI error: {res_json['error']}"}
+        
+        prompt_id = res_json.get("prompt_id")
+        print(f"Prompt ID: {prompt_id}")
 
-        # Wait for image
+        # Wait for image with timeout
         found_file = None
-        for _ in range(60):
-            if os.path.exists(OUTPUT_DIR):
-                files = [f for f in os.listdir(OUTPUT_DIR) if f.startswith(file_prefix)]
-                if files:
-                    found_file = os.path.join(OUTPUT_DIR, files[0])
-                    break
+        for attempt in range(60):  # 60 * 2 seconds = 120 seconds timeout
+            try:
+                # Check history
+                history_res = requests.get(f"{COMFY_URL}/history/{prompt_id}", timeout=5)
+                if history_res.status_code == 200:
+                    history = history_res.json()
+                    if prompt_id in history:
+                        # Image should be generated
+                        if os.path.exists(OUTPUT_DIR):
+                            files = [f for f in os.listdir(OUTPUT_DIR) if f.startswith(file_prefix)]
+                            if files:
+                                found_file = os.path.join(OUTPUT_DIR, files[0])
+                                print(f"Found output file: {found_file}")
+                                break
+            except:
+                pass  # Ignore connection errors while polling
+            
             time.sleep(2)
 
-        if not found_file:
-            return {"error": "Timeout: Image not generated. Check logs for node errors."}
+        if not found_file or not os.path.exists(found_file):
+            return {"error": "Image generation timeout or failed"}
 
-        # Upload & Backup
-        r2_url = upload_to_r2(found_file, f"{file_prefix}.png")
-        volume_path = f"/runpod-volume/output/{file_prefix}.png"
+        # Upload to R2
+        file_name = f"{file_prefix}.png"
+        r2_url = upload_to_r2(found_file, file_name)
         
-        os.makedirs("/runpod-volume/output", exist_ok=True)
-        with open(found_file, "rb") as f_in, open(volume_path, "wb") as f_out:
-            f_out.write(f_in.read())
-
-        return {"status": "success", "image_url": r2_url}
+        print(f"✅ Image generated successfully: {r2_url}")
+        
+        # Return with proper structure
+        return {
+            "status": "success",
+            "image_url": r2_url,
+            "images": [r2_url]  # Also return as array for frontend compatibility
+        }
 
     except Exception as e:
+        print(f"❌ Handler error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {"error": str(e)}
 
 runpod.serverless.start({"handler": handler})
