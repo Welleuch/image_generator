@@ -21,14 +21,21 @@ R2_CONF = {
     'public_url': "https://pub-518bf750a6194bb7b92bf803e180ed88.r2.dev"
 }
 
-def wait_for_comfyui(timeout=120):
+def wait_for_comfyui(timeout=180):  # Increased from 120 to 180 seconds
     start_time = time.time()
     while time.time() - start_time < timeout:
         try:
-            requests.get(COMFY_URL)
-            return True
-        except:
-            time.sleep(5)
+            # Try to connect to ComfyUI
+            response = requests.get(f"{COMFY_URL}/system_stats", timeout=5)
+            if response.status_code == 200:
+                print("✅ ComfyUI is ready!")
+                return True
+        except requests.exceptions.ConnectionError:
+            print(f"⏳ Waiting for ComfyUI... ({int(time.time() - start_time)}s)")
+        except Exception as e:
+            print(f"⚠️ ComfyUI check error: {e}")
+        time.sleep(5)
+    print("❌ ComfyUI failed to start within timeout")
     return False
 
 def upload_to_r2(file_path, file_name):
@@ -42,14 +49,21 @@ def upload_to_r2(file_path, file_name):
     return f"{R2_CONF['public_url']}/{file_name}"
 
 def handler(job):
-    if not wait_for_comfyui():
-        return {"error": "ComfyUI failed to start."}
-
+    print(f"🎬 Starting image generation job")
+    
+    # First, wait for ComfyUI to be ready (with longer timeout)
+    if not wait_for_comfyui(180):
+        return {
+            "error": "ComfyUI failed to start within 3 minutes",
+            "status": "failed",
+            "note": "Endpoint is cold-starting, please try again in 2 minutes"
+        }
+    
     job_input = job['input']
     user_prompt = job_input.get("prompt")
     
-    with open(WORKFLOW_PATH, 'r') as f:
-        workflow = json.load(f)
+    print(f"📝 Prompt: {user_prompt[:100]}...")
+    workflow = json.load(f)
 
     if user_prompt:
         workflow["34:27"]["inputs"]["text"] = user_prompt

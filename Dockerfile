@@ -13,4 +13,17 @@ ENV COMFYUI_PATH_CONFIG=/comfyui/extra_model_paths.yaml
 
 # Create symlinks and start
 # Added 'pip install gguf' right at the start as a safety measure
-CMD sh -c "pip install gguf && mkdir -p /runpod-volume/output && ln -s /runpod-volume/custom_nodes/* /comfyui/custom_nodes/ && python /comfyui/main.py --listen 127.0.0.1 --port 8188 & python -u /handler.py"
+CMD ["sh", "-c", "\
+  # Warm-up: pre-start ComfyUI \
+  echo '🚀 Pre-warming ComfyUI...' && \
+  cd /comfyui && \
+  python main.py --listen 127.0.0.1 --port 8188 & \
+  \
+  # Wait for ComfyUI to start \
+  echo '⏳ Waiting for ComfyUI to start...' && \
+  sleep 30 && \
+  \
+  # Start handler \
+  echo '🏁 Starting handler...' && \
+  python -u /handler.py \
+"]
