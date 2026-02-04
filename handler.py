@@ -21,14 +21,27 @@ R2_CONF = {
     'public_url': "https://pub-518bf750a6194bb7b92bf803e180ed88.r2.dev"
 }
 
-def wait_for_comfyui(timeout=180):  # Increased from 120 to 180 seconds
+def wait_for_comfyui(timeout=240):  # Increased to 4 minutes
     start_time = time.time()
     while time.time() - start_time < timeout:
         try:
             # Try to connect to ComfyUI
-            response = requests.get(f"{COMFY_URL}/system_stats", timeout=5)
+            response = requests.get(f"{COMFY_URL}/system_stats", timeout=10)
             if response.status_code == 200:
                 print("✅ ComfyUI is ready!")
+                
+                # Also check if GGUF nodes are loaded
+                try:
+                    obj_res = requests.get(f"{COMFY_URL}/object_info", timeout=5)
+                    if obj_res.status_code == 200:
+                        obj_info = obj_res.json()
+                        if 'UnetLoaderGGUF' in str(obj_info):
+                            print("✅ GGUF nodes are loaded!")
+                        else:
+                            print("⚠️ GGUF nodes may not be loaded")
+                except:
+                    pass
+                    
                 return True
         except requests.exceptions.ConnectionError:
             print(f"⏳ Waiting for ComfyUI... ({int(time.time() - start_time)}s)")
