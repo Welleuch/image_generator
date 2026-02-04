@@ -1,12 +1,16 @@
 # Ignore everything
 *
 
-# Except these files
+# Except these 4 files ONLY
 !Dockerfile
 !handler.py
 !extra_model_paths.yaml
 !workflow_api.json
 !.dockerignore
+
+# Ignore ALL other Python files
+*.py
+!handler.py
 
 # Ignore all model files
 *.gguf
@@ -29,6 +33,30 @@ __pycache__/
 env/
 venv/
 ENV/
+
+# Ignore all text/config files
+*.txt
+*.md
+*.json
+!workflow_api.json
+*.yaml
+!extra_model_paths.yaml
+*.yml
+*.cfg
+*.ini
+
+# Ignore directories
 .git/
 .vscode/
 .idea/
+models/
+checkpoints/
+unet/
+vae/
+clip/
+embeddings/
+loras/
+hypernetworks/
+
+# Ignore shell scripts
+*.sh
