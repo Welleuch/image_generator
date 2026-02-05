@@ -43,12 +43,12 @@ def wait_for_comfyui(timeout=300):
         except Exception:
             pass
         time.sleep(5)
+    
+    # Logic moved outside the loop so it actually runs on failure
+    if os.path.exists("/comfyui_logs.txt"):
+        with open("/comfyui_logs.txt", "r") as f:
+            print(f"❌ ComfyUI failed to start. Logs:\n{f.read()}")
     return False
-    if not success:
-        if os.path.exists("/comfyui_logs.txt"):
-            with open("/comfyui_logs.txt", "r") as f:
-                print(f"ComfyUI Logs:\n{f.read()}")
-    return success
 
 def clean_prompt(prompt):
     # ... (Deine bestehende clean_prompt Logik beibehalten) ...
