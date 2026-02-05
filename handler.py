@@ -38,27 +38,41 @@ def clean_prompt(prompt):
     return prompt.strip()
 
 def handler(job):
-    print("🎬 Starte Bildgenerierung...")
+    print("🎬 Starting batch image generation...")
     try:
         job_input = job['input']
-        prompt = clean_prompt(job_input.get("prompt", ""))
+        # If llama sends a list called 'visual_prompts', we use it
+        prompts = job_input.get("visual_prompts", [])
         
-        with open(WORKFLOW_PATH, 'r') as f:
-            workflow = json.load(f)
-        
-        if "34:27" in workflow: workflow["34:27"]["inputs"]["text"] = prompt
-        
-        seed = int(time.time() * 1000) % 1000000000
-        file_prefix = f"gen_{int(time.time())}"
-        if "9" in workflow: workflow["9"]["inputs"]["filename_prefix"] = f"output/{file_prefix}"
+        # If it's just a single string, wrap it in a list
+        if isinstance(prompts, str):
+            prompts = [prompts]
+            
+        final_urls = []
 
-        # Note: You need to implement the actual waiting logic for the image file here
-        response = requests.post(f"{COMFY_URL}/prompt", json={"prompt": workflow}, timeout=60)
-        
+        with open(WORKFLOW_PATH, 'r') as f:
+            base_workflow = json.load(f)
+
+        for i, raw_prompt in enumerate(prompts):
+            print(f"📸 Processing image {i+1}/{len(prompts)}: {raw_prompt[:30]}...")
+            prompt = clean_prompt(raw_prompt)
+            
+            # Update workflow nodes
+            if "34:27" in base_workflow: base_workflow["34:27"]["inputs"]["text"] = prompt
+            
+            # Send to ComfyUI
+            response = requests.post(f"{COMFY_URL}/prompt", json={"prompt": base_workflow})
+            prompt_id = response.json().get('prompt_id')
+
+            # --- POLLING LOGIC ---
+            # Wait for the image to be generated before moving to the next one
+            image_url = wait_for_image_and_upload(prompt_id) # You need to implement this helper
+            final_urls.append(image_url)
+
         return {
             "status": "success",
-            "message": "Workflow sent to ComfyUI",
-            "prompt_used": prompt
+            "image_urls": final_urls,
+            "count": len(final_urls)
         }
     except Exception as e:
         return {"error": str(e)}
