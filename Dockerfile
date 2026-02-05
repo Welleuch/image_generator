@@ -25,4 +25,4 @@ COPY extra_model_paths.yaml /comfyui/extra_model_paths.yaml
 COPY workflow_api.json /comfyui/workflow_api.json
 
 # WICHTIG: Leite ComfyUI Logs in eine Datei um, damit wir sie debuggen können
-CMD ["sh", "-c", "cd /comfyui && python main.py --listen 127.0.0.1 --port 8188 --use-xformers > /comfyui_logs.txt 2>&1 & python -u /handler.py"]
+CMD ["sh", "-c", "cd /comfyui && python main.py --listen 0.0.0.0 --port 8188 --use-xformers > /comfyui_logs.txt 2>&1 & python -u /handler.py"]

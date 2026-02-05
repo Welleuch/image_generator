@@ -30,7 +30,7 @@ def upload_to_r2(file_path, file_name):
         print(f"❌ R2 upload error: {e}")
         raise
 
-def wait_for_comfyui(timeout=120):
+def wait_for_comfyui(timeout=300):
     """Prüft dynamisch, ob ComfyUI bereit ist"""
     print(f"🚀 Warte auf ComfyUI unter {COMFY_URL}...")
     start_time = time.time()
@@ -44,6 +44,11 @@ def wait_for_comfyui(timeout=120):
             pass
         time.sleep(5)
     return False
+    if not success:
+        if os.path.exists("/comfyui_logs.txt"):
+            with open("/comfyui_logs.txt", "r") as f:
+                print(f"ComfyUI Logs:\n{f.read()}")
+    return success
 
 def clean_prompt(prompt):
     # ... (Deine bestehende clean_prompt Logik beibehalten) ...

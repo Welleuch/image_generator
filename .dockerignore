@@ -60,3 +60,5 @@ hypernetworks/
 
 # Ignore shell scripts
 *.sh
+
+!requirements.txt
