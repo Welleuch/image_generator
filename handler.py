@@ -26,7 +26,6 @@ def wait_for_comfyui(timeout=300):
             pass
         time.sleep(5)
     
-    # FIX: This now runs if the loop times out
     if os.path.exists("/comfyui_logs.txt"):
         with open("/comfyui_logs.txt", "r") as f:
             print(f"❌ ComfyUI ERROR LOGS:\n{f.read()}")
@@ -37,45 +36,76 @@ def clean_prompt(prompt):
         return "3D printable Gray PLA decorative object"
     return prompt.strip()
 
-def wait_for_images(prompt_id):
-    """Polls ComfyUI until the prompt_id is no longer in the queue/running."""
-    while True:
-        # Check history to see if it's finished
-        history_resp = requests.get(f"http://127.0.0.1:8188/history/{prompt_id}").json()
-        if prompt_id in history_resp:
-            print(f"✅ Image generation for {prompt_id} complete!")
-            # Return the filenames created by this prompt
-            return history_resp[prompt_id]['outputs']
-        
-        print("⏳ Waiting for ComfyUI to finish rendering...")
-        time.sleep(2) # Wait 2 seconds before checking again
+def upload_to_r2(local_path, r2_filename):
+    """Uploads the generated image from ComfyUI output to Cloudflare R2"""
+    print(f"📤 Uploading {r2_filename} to R2...")
+    s3 = boto3.client(
+        's3',
+        endpoint_url=R2_CONF['endpoint'],
+        aws_access_key_id=R2_CONF['access_key'],
+        aws_secret_access_key=R2_CONF['secret_key'],
+        config=Config(signature_version='s3v4')
+    )
+    try:
+        s3.upload_file(local_path, R2_CONF['bucket'], r2_filename, ExtraArgs={'ContentType': 'image/png'})
+        public_url = f"{R2_CONF['public_url']}/{r2_filename}"
+        print(f"✅ Upload successful: {public_url}")
+        return public_url
+    except Exception as e:
+        print(f"❌ R2 Upload Failed: {str(e)}")
+        raise e
 
 def handler(job):
     print("🎬 Starting batch image generation...")
     try:
-        prompts = job['input'].get("visual_prompts", [])
-        if isinstance(prompts, str): prompts = [prompts]
+        job_input = job['input']
+        prompts = job_input.get("visual_prompts", [])
         
-        results = []
-        for i, text in enumerate(prompts):
-            # 1. Send to ComfyUI
-            # ... (your existing code to update workflow_api.json) ...
-            resp = requests.post("http://127.0.0.1:8188/prompt", json={"prompt": workflow}).json()
-            prompt_id = resp.get('prompt_id')
+        if isinstance(prompts, str):
+            prompts = [prompts]
+            
+        final_urls = []
 
-            # 2. BLOCKING WAIT (This prevents the 'Fast Finish' bug)
-            outputs = wait_for_images(prompt_id)
+        with open(WORKFLOW_PATH, 'r') as f:
+            workflow = json.load(f)
 
-            # 3. UPLOAD TO R2
-            # Use the 'outputs' from above to find the exact file in /comfyui/output/
-            # and upload it to your Cloudflare R2.
-            image_url = upload_to_r2(prompt_id) # Your upload function
-            results.append(image_url)
+        for i, raw_prompt in enumerate(prompts):
+            print(f"📸 Processing {i+1}/{len(prompts)}: {raw_prompt}")
+            prompt_text = clean_prompt(raw_prompt)
+            
+            # Update the prompt text in workflow (Node 34:27 in your setup)
+            if "34:27" in workflow: 
+                workflow["34:27"]["inputs"]["text"] = prompt_text
+            
+            # 1. Trigger ComfyUI
+            response = requests.post(f"{COMFY_URL}/prompt", json={"prompt": workflow})
+            prompt_id = response.json().get('prompt_id')
+            
+            # 2. BLOCKING WAIT
+            completed = False
+            history = {}
+            while not completed:
+                time.sleep(2)
+                history_resp = requests.get(f"{COMFY_URL}/history/{prompt_id}").json()
+                if prompt_id in history_resp:
+                    history = history_resp[prompt_id]
+                    completed = True
+                    print(f"✅ Image {i+1} generated.")
+            
+            # 3. GET FILENAME AND UPLOAD
+            # Node '9' is your Save Image node
+            filename = history['outputs']['9']['images'][0]['filename']
+            file_path = os.path.join(OUTPUT_DIR, filename)
+            
+            r2_url = upload_to_r2(file_path, f"gen_{int(time.time())}_{i}.png")
+            final_urls.append(r2_url)
 
-        return {"status": "success", "image_urls": results}
-        
+        return {
+            "status": "success",
+            "image_urls": final_urls
+        }
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print(f"❌ ERROR: {str(e)}")
         return {"error": str(e)}
 
 if __name__ == "__main__":
