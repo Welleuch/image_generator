@@ -37,44 +37,45 @@ def clean_prompt(prompt):
         return "3D printable Gray PLA decorative object"
     return prompt.strip()
 
+def wait_for_images(prompt_id):
+    """Polls ComfyUI until the prompt_id is no longer in the queue/running."""
+    while True:
+        # Check history to see if it's finished
+        history_resp = requests.get(f"http://127.0.0.1:8188/history/{prompt_id}").json()
+        if prompt_id in history_resp:
+            print(f"✅ Image generation for {prompt_id} complete!")
+            # Return the filenames created by this prompt
+            return history_resp[prompt_id]['outputs']
+        
+        print("⏳ Waiting for ComfyUI to finish rendering...")
+        time.sleep(2) # Wait 2 seconds before checking again
+
 def handler(job):
     print("🎬 Starting batch image generation...")
     try:
-        job_input = job['input']
-        # If llama sends a list called 'visual_prompts', we use it
-        prompts = job_input.get("visual_prompts", [])
+        prompts = job['input'].get("visual_prompts", [])
+        if isinstance(prompts, str): prompts = [prompts]
         
-        # If it's just a single string, wrap it in a list
-        if isinstance(prompts, str):
-            prompts = [prompts]
-            
-        final_urls = []
+        results = []
+        for i, text in enumerate(prompts):
+            # 1. Send to ComfyUI
+            # ... (your existing code to update workflow_api.json) ...
+            resp = requests.post("http://127.0.0.1:8188/prompt", json={"prompt": workflow}).json()
+            prompt_id = resp.get('prompt_id')
 
-        with open(WORKFLOW_PATH, 'r') as f:
-            base_workflow = json.load(f)
+            # 2. BLOCKING WAIT (This prevents the 'Fast Finish' bug)
+            outputs = wait_for_images(prompt_id)
 
-        for i, raw_prompt in enumerate(prompts):
-            print(f"📸 Processing image {i+1}/{len(prompts)}: {raw_prompt[:30]}...")
-            prompt = clean_prompt(raw_prompt)
-            
-            # Update workflow nodes
-            if "34:27" in base_workflow: base_workflow["34:27"]["inputs"]["text"] = prompt
-            
-            # Send to ComfyUI
-            response = requests.post(f"{COMFY_URL}/prompt", json={"prompt": base_workflow})
-            prompt_id = response.json().get('prompt_id')
+            # 3. UPLOAD TO R2
+            # Use the 'outputs' from above to find the exact file in /comfyui/output/
+            # and upload it to your Cloudflare R2.
+            image_url = upload_to_r2(prompt_id) # Your upload function
+            results.append(image_url)
 
-            # --- POLLING LOGIC ---
-            # Wait for the image to be generated before moving to the next one
-            image_url = wait_for_image_and_upload(prompt_id) # You need to implement this helper
-            final_urls.append(image_url)
-
-        return {
-            "status": "success",
-            "image_urls": final_urls,
-            "count": len(final_urls)
-        }
+        return {"status": "success", "image_urls": results}
+        
     except Exception as e:
+        print(f"❌ Error: {str(e)}")
         return {"error": str(e)}
 
 if __name__ == "__main__":
