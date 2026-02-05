@@ -9,7 +9,7 @@ ENV COMFYUI_PATH_CONFIG=/comfyui/extra_model_paths.yaml
 RUN apt-get update && apt-get install -y git libgl1 libglib2.0-0 && apt-get clean
 
 # 2. ComfyUI Core - AKTUALISIERTE URL
-RUN git clone https://github.com/Comfy-Org/ComfyUI
+RUN git clone https://github.com/Comfy-Org/ComfyUI /comfyui
 WORKDIR /comfyui
 
 # 3. Installation der Abhängigkeiten
