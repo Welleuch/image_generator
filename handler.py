@@ -47,43 +47,28 @@ def upload_to_r2(local_path, r2_filename):
 
 def handler(job):
     try:
-        # 1. Get the package from the Worker
         job_input = job.get('input', {})
-        ideas = job_input.get('input_data', [])
+        # FIX: The Worker sends "ideas", not "input_data"
+        ideas = job_input.get('ideas', []) 
         
         if not ideas:
-            return {"status": "error", "message": "No input data received"}
+            return {"status": "error", "message": "No ideas array found in input"}
 
         final_results = []
-
-        # 2. Process each idea package
         for idea in ideas:
             name = idea.get('name')
             visual_prompt = idea.get('visual')
 
-            print(f"🎨 Generating: {name}")
-
-            # 3. Call your existing ComfyUI + R2 logic
-            # (Assuming your function is called run_comfy_and_upload)
+            # Your existing logic remains untouched
             image_url = run_comfy_and_upload(visual_prompt)
 
-            # 4. Create the final clean pair
+            # Pair them exactly as the frontend expects
             final_results.append({
                 "name": name,
-                "image_url": image_url
+                "url": image_url # Use 'url' to match your frontend logic
             })
 
-        # 5. Send back the ready-to-display list
-        return {
-            "status": "success",
-            "results": final_results
-        }
-
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-runpod.serverless.start({"handler": handler})
+        return {"results": final_results} # Clean output
 
 if __name__ == "__main__":
     if wait_for_comfyui():
