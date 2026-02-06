@@ -46,50 +46,44 @@ def upload_to_r2(local_path, r2_filename):
         raise e
 
 def handler(job):
-    print("🎬 Starting batch image generation...")
     try:
-        prompts = job['input'].get("visual_prompts", [])
-        if isinstance(prompts, str): prompts = [prompts]
-        final_urls = []
+        # 1. Get the package from the Worker
+        job_input = job.get('input', {})
+        ideas = job_input.get('input_data', [])
+        
+        if not ideas:
+            return {"status": "error", "message": "No input data received"}
 
-        with open(WORKFLOW_PATH, 'r') as f:
-            workflow = json.load(f)
+        final_results = []
 
-        for i, raw_prompt in enumerate(prompts):
-            print(f"📸 Processing: {raw_prompt}")
-            if "34:27" in workflow: workflow["34:27"]["inputs"]["text"] = raw_prompt.strip()
-            
-            # 1. Trigger
-            res = requests.post(f"{COMFY_URL}/prompt", json={"prompt": workflow}).json()
-            prompt_id = res['prompt_id']
-            
-            # 2. Wait
-            completed = False
-            while not completed:
-                time.sleep(2)
-                hist = requests.get(f"{COMFY_URL}/history/{prompt_id}").json()
-                if prompt_id in hist: completed = True
-            
-            # 3. Fetch Image via API (Universal way)
-            img_info = hist[prompt_id]['outputs']['9']['images'][0]
-            filename = img_info['filename']
-            subfolder = img_info.get('subfolder', '')
-            
-            view_url = f"{COMFY_URL}/view?filename={filename}&subfolder={subfolder}&type=output"
-            print(f"📥 Fetching image from: {view_url}")
-            
-            img_data = requests.get(view_url).content
-            temp_path = f"/tmp/{filename.split('/')[-1]}"
-            with open(temp_path, "wb") as f: f.write(img_data)
-            
-            # 4. Upload
-            final_urls.append(upload_to_r2(temp_path, f"gen_{int(time.time())}_{i}.png"))
-            if os.path.exists(temp_path): os.remove(temp_path)
+        # 2. Process each idea package
+        for idea in ideas:
+            name = idea.get('name')
+            visual_prompt = idea.get('visual')
 
-        return {"status": "success", "image_urls": final_urls}
+            print(f"🎨 Generating: {name}")
+
+            # 3. Call your existing ComfyUI + R2 logic
+            # (Assuming your function is called run_comfy_and_upload)
+            image_url = run_comfy_and_upload(visual_prompt)
+
+            # 4. Create the final clean pair
+            final_results.append({
+                "name": name,
+                "image_url": image_url
+            })
+
+        # 5. Send back the ready-to-display list
+        return {
+            "status": "success",
+            "results": final_results
+        }
+
     except Exception as e:
-        print(f"❌ ERROR: {str(e)}")
-        return {"error": str(e)}
+        print(f"❌ Error: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+runpod.serverless.start({"handler": handler})
 
 if __name__ == "__main__":
     if wait_for_comfyui():
