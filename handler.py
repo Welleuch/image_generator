@@ -1,8 +1,7 @@
 import os, requests, json, time, runpod, boto3
 from botocore.config import Config
 
-COMFY_URL = "http://127.0.0.1:8188"
-OUTPUT_DIR = "/comfyui/output"
+COMFY_URL = "http://host.docker.internal:8188"
 WORKFLOW_PATH = "/comfyui/workflow_api.json"
 
 R2_CONF = {
@@ -20,98 +19,78 @@ def wait_for_comfyui(timeout=300):
         try:
             response = requests.get(f"{COMFY_URL}/system_stats", timeout=5)
             if response.status_code == 200:
-                print(f"✅ ComfyUI ist bereit nach {int(time.time() - start_time)}s!")
+                print(f"✅ ComfyUI ist bereit!")
                 return True
-        except Exception:
-            pass
+        except: pass
         time.sleep(5)
-    
-    if os.path.exists("/comfyui_logs.txt"):
-        with open("/comfyui_logs.txt", "r") as f:
-            print(f"❌ ComfyUI ERROR LOGS:\n{f.read()}")
     return False
 
-def clean_prompt(prompt):
-    if not prompt or not isinstance(prompt, str):
-        return "3D printable Gray PLA decorative object"
-    return prompt.strip()
-
 def upload_to_r2(local_path, r2_filename):
-    """Uploads the generated image from ComfyUI output to Cloudflare R2"""
     print(f"📤 Uploading {r2_filename} to R2...")
-    s3 = boto3.client(
-        's3',
+    s3 = boto3.client('s3',
         endpoint_url=R2_CONF['endpoint'],
         aws_access_key_id=R2_CONF['access_key'],
         aws_secret_access_key=R2_CONF['secret_key'],
         config=Config(signature_version='s3v4')
     )
     try:
-        s3.upload_file(local_path, R2_CONF['bucket'], r2_filename, ExtraArgs={'ContentType': 'image/png'})
-        public_url = f"{R2_CONF['public_url']}/{r2_filename}"
-        print(f"✅ Upload successful: {public_url}")
-        return public_url
+        filesize = os.path.getsize(local_path)
+        print(f"📝 Local file size: {filesize} bytes")
+        if filesize == 0: raise Exception("Local file is empty!")
+
+        with open(local_path, "rb") as data:
+            s3.put_object(Bucket=R2_CONF['bucket'], Key=r2_filename, Body=data, ContentType='image/png')
+        return f"{R2_CONF['public_url']}/{r2_filename}"
     except Exception as e:
-        print(f"❌ R2 Upload Failed: {str(e)}")
+        print(f"❌ R2 Error: {str(e)}")
         raise e
 
 def handler(job):
     print("🎬 Starting batch image generation...")
     try:
-        job_input = job['input']
-        prompts = job_input.get("visual_prompts", [])
-        
-        if isinstance(prompts, str):
-            prompts = [prompts]
-            
+        prompts = job['input'].get("visual_prompts", [])
+        if isinstance(prompts, str): prompts = [prompts]
         final_urls = []
 
         with open(WORKFLOW_PATH, 'r') as f:
             workflow = json.load(f)
 
         for i, raw_prompt in enumerate(prompts):
-            print(f"📸 Processing {i+1}/{len(prompts)}: {raw_prompt}")
-            prompt_text = clean_prompt(raw_prompt)
+            print(f"📸 Processing: {raw_prompt}")
+            if "34:27" in workflow: workflow["34:27"]["inputs"]["text"] = raw_prompt.strip()
             
-            # Update the prompt text in workflow (Node 34:27 in your setup)
-            if "34:27" in workflow: 
-                workflow["34:27"]["inputs"]["text"] = prompt_text
+            # 1. Trigger
+            res = requests.post(f"{COMFY_URL}/prompt", json={"prompt": workflow}).json()
+            prompt_id = res['prompt_id']
             
-            # 1. Trigger ComfyUI
-            response = requests.post(f"{COMFY_URL}/prompt", json={"prompt": workflow})
-            prompt_id = response.json().get('prompt_id')
-            
-            # 2. BLOCKING WAIT
+            # 2. Wait
             completed = False
-            history = {}
             while not completed:
                 time.sleep(2)
-                history_resp = requests.get(f"{COMFY_URL}/history/{prompt_id}").json()
-                if prompt_id in history_resp:
-                    history = history_resp[prompt_id]
-                    completed = True
-                    print(f"✅ Image {i+1} generated.")
+                hist = requests.get(f"{COMFY_URL}/history/{prompt_id}").json()
+                if prompt_id in hist: completed = True
             
-            # 3. GET FILENAME AND UPLOAD
-            # Node '9' is your Save Image node
-            filename = history['outputs']['9']['images'][0]['filename']
-            file_path = os.path.join(OUTPUT_DIR, filename)
+            # 3. Fetch Image via API (Universal way)
+            img_info = hist[prompt_id]['outputs']['9']['images'][0]
+            filename = img_info['filename']
+            subfolder = img_info.get('subfolder', '')
             
-            r2_url = upload_to_r2(file_path, f"gen_{int(time.time())}_{i}.png")
-            final_urls.append(r2_url)
+            view_url = f"{COMFY_URL}/view?filename={filename}&subfolder={subfolder}&type=output"
+            print(f"📥 Fetching image from: {view_url}")
+            
+            img_data = requests.get(view_url).content
+            temp_path = f"/tmp/{filename.split('/')[-1]}"
+            with open(temp_path, "wb") as f: f.write(img_data)
+            
+            # 4. Upload
+            final_urls.append(upload_to_r2(temp_path, f"gen_{int(time.time())}_{i}.png"))
+            if os.path.exists(temp_path): os.remove(temp_path)
 
-        return {
-            "status": "success",
-            "image_urls": final_urls
-        }
+        return {"status": "success", "image_urls": final_urls}
     except Exception as e:
         print(f"❌ ERROR: {str(e)}")
         return {"error": str(e)}
 
 if __name__ == "__main__":
     if wait_for_comfyui():
-        print("🏁 Starte RunPod Serverless Loop...")
         runpod.serverless.start({"handler": handler})
-    else:
-        print("❌ Abbruch: ComfyUI konnte nicht erreicht werden.")
-        exit(1)

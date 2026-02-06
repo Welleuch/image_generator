@@ -1,7 +1,7 @@
 {
   "9": {
     "inputs": {
-      "filename_prefix": "output/ComfyUI",
+      "filename_prefix": "2026-02-06/zimg",
       "images": [
         "34:8",
         0
@@ -19,79 +19,9 @@
       "title": "Conditioning (Concat)"
     }
   },
-  "34:33": {
-    "inputs": {
-      "conditioning": [
-        "34:27",
-        0
-      ]
-    },
-    "class_type": "ConditioningZeroOut",
-    "_meta": {
-      "title": "ConditioningZeroOut"
-    }
-  },
-  "34:29": {
-    "inputs": {
-      "vae_name": "ae.safetensors"
-    },
-    "class_type": "VAELoader",
-    "_meta": {
-      "title": "Load VAE"
-    }
-  },
-  "34:8": {
-    "inputs": {
-      "samples": [
-        "34:3",
-        0
-      ],
-      "vae": [
-        "34:29",
-        0
-      ]
-    },
-    "class_type": "VAEDecode",
-    "_meta": {
-      "title": "VAE Decode"
-    }
-  },
-  "34:37": {
-    "inputs": {
-      "unet_name": "z-image-turbo-q2_k.gguf"  // CHANGED: Your 3.37GB model
-    },
-    "class_type": "UnetLoaderGGUF",
-    "_meta": {
-      "title": "Unet Loader (GGUF)"
-    }
-  },
-  "34:13": {
-    "inputs": {
-      "width": 512,
-      "height": 512,
-      "batch_size": 1
-    },
-    "class_type": "EmptySD3LatentImage",
-    "_meta": {
-      "title": "EmptySD3LatentImage"
-    }
-  },
-  "34:27": {
-    "inputs": {
-      "text": "PLACEHOLDER_PROMPT",
-      "clip": [
-        "34:55",
-        0
-      ]
-    },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "CLIP Text Encode (Prompt)"
-    }
-  },
   "34:3": {
     "inputs": {
-      "seed": 1337,
+      "seed": 142416879881766,
       "steps": 8,
       "cfg": 1,
       "sampler_name": "res_multistep",
@@ -119,14 +49,97 @@
       "title": "KSampler"
     }
   },
+  "34:33": {
+    "inputs": {
+      "conditioning": [
+        "34:27",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "34:37": {
+    "inputs": {
+      "unet_name": "z-image-turbo-q2_k.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF)"
+    }
+  },
+  "34:29": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
   "34:55": {
     "inputs": {
-      "clip_name": "Qwen3-4B-Q4_K_M.gguf",  // KEEP: Current 2.5GB model
+      "clip_name": "qwen3-4b-q4_k_m.gguf",
       "type": "lumina2"
     },
     "class_type": "CLIPLoaderGGUF",
     "_meta": {
       "title": "CLIPLoader (GGUF)"
+    }
+  },
+  "34:13": {
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "34:27": {
+    "inputs": {
+      "text": "You are a creative product designer and 3D-printing expert.\n\nI want to offer a little 7 yo child  a 3d printed gift made completely with PLA filament of gray color. he loves mercenary cat and eating pizza. \n\n\nYour task is to:\nPropose unique gift idea that is useful for his job or hobby, thoughtful, or decorative. \n\nFavor designs that:\nPrint without excessive supports and thin walls\nAvoid ideas that require electronics\nThe final model must be one continuous object, with no separate parts., fully connected 3D mesh\nPlease provide a visual design description suitable for generating a 3D model from the front perspective that helps a image to 3d model ai generator to generate a solid printable 3d model.\nPlease take into consideration that the generated image will make the 3d model repects the rules of design for additive manufacturing DfAM",
+      "clip": [
+        "34:55",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "34:8": {
+    "inputs": {
+      "samples": [
+        "34:3",
+        0
+      ],
+      "vae": [
+        "34:29",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "34:56": {
+    "inputs": {
+      "filename_prefix": "zimg",
+      "images": [
+        "34:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
     }
   }
 }
