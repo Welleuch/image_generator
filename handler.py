@@ -1,7 +1,7 @@
 import os, requests, json, time, runpod, boto3
 from botocore.config import Config
 
-COMFY_URL = "http://host.docker.internal:8188"
+COMFY_URL = "http://127.0.0.1:8188"
 WORKFLOW_PATH = "/comfyui/workflow_api.json"
 
 R2_CONF = {
