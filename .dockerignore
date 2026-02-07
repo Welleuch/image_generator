@@ -1,64 +1,21 @@
-# Ignore everything
+# 1. Ignore EVERYTHING by default
 *
 
-# Except these 4 files ONLY
+# 2. ALLOW ONLY these specific files (The "Holes" in the wall)
 !Dockerfile
 !handler.py
-!extra_model_paths.yaml
 !workflow_api.json
+!requirements.txt
+!extra_model_paths.yaml
 !.dockerignore
 
-# Ignore ALL other Python files
-*.py
-!handler.py
-
-# Ignore all model files
-*.gguf
-*.safetensors
-*.ckpt
-*.pth
-*.bin
-*.onnx
-
-# Ignore outputs and caches
-output/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-.ipynb_checkpoints
-.venv
-env/
-venv/
-ENV/
-
-# Ignore all text/config files
-*.txt
-*.md
-*.json
-!workflow_api.json
-*.yaml
-!extra_model_paths.yaml
-*.yml
-*.cfg
-*.ini
-
-# Ignore directories
+# 3. FORCE IGNORE common heavy/hidden folders (Extra safety)
 .git/
 .vscode/
 .idea/
+__pycache__/
 models/
-checkpoints/
-unet/
-vae/
-clip/
-embeddings/
-loras/
-hypernetworks/
-
-# Ignore shell scripts
-*.sh
-
-!requirements.txt
+output/
+venv/
+.venv/
+node_modules/

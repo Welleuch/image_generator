@@ -1,8 +1,18 @@
 import os, requests, json, time, runpod, boto3, uuid
 from botocore.config import Config
 
+# This pulls the /etc/comfy_workflow.json path from Docker
+WORKFLOW_PATH = os.getenv("WORKFLOW_PATH", "/etc/comfy_workflow.json")
+
+def load_workflow():
+    try:
+        with open(WORKFLOW_PATH, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"CRITICAL ERROR: Workflow file missing at {WORKFLOW_PATH}")
+        raise
+
 def upload_to_r2(file_path, key):
-    # Use environment variables set in RunPod dashboard
     s3_client = boto3.client(
         's3',
         endpoint_url=os.environ.get('R2_ENDPOINT'),
@@ -16,21 +26,28 @@ def upload_to_r2(file_path, key):
 def handler(job):
     try:
         prompt_text = job['input'].get('visual_prompt')
-        with open("/workflow_api.json", 'r') as f:
-            workflow = json.load(f)
+        
+        # CHANGED: Use the robust loader instead of hardcoded root path
+        workflow = load_workflow()
+
+        # Target specific node if it exists
         if "34:27" in workflow:
             workflow["34:27"]["inputs"]["text"] = prompt_text
-        # 1. Update Prompt (find your CLIPTextEncode node)
+        
+        # Fallback: Update any CLIPTextEncode node
         for node_id in workflow:
             if workflow[node_id].get('class_type') == 'CLIPTextEncode':
                 workflow[node_id]['inputs']['text'] = prompt_text
                 break
 
-        # 2. Submit to ComfyUI (Internal 127.0.0.1)
+        # Submit to ComfyUI
         res = requests.post("http://127.0.0.1:8188/prompt", json={"prompt": workflow}).json()
+        if 'error' in res:
+            raise Exception(f"ComfyUI Error: {res['error']}")
+            
         prompt_id = res['prompt_id']
         
-        # 3. Poll for Image
+        # Poll for Image
         filename = None
         while not filename:
             hist = requests.get(f"http://127.0.0.1:8188/history/{prompt_id}").json()
@@ -43,10 +60,12 @@ def handler(job):
                 break
             time.sleep(1)
 
-        # 4. Upload and Cleanup
+        # Upload and Cleanup
         full_path = f"/comfyui/output/{filename}"
         public_url = upload_to_r2(full_path, f"gen_{int(time.time())}.png")
-        os.remove(full_path) 
+        
+        if os.path.exists(full_path):
+            os.remove(full_path) 
 
         return {"status": "success", "image_url": public_url}
     except Exception as e:
