@@ -47,28 +47,33 @@ def upload_to_r2(local_path, r2_filename):
 
 def handler(job):
     try:
+        # The Worker sends { input: { ideas: [...] } }
         job_input = job.get('input', {})
-        # FIX: The Worker sends "ideas", not "input_data"
-        ideas = job_input.get('ideas', []) 
+        ideas = job_input.get('ideas', []) # Matches the 'ideas' key in Worker
         
         if not ideas:
-            return {"status": "error", "message": "No ideas array found in input"}
+            return {"status": "error", "message": "No ideas array found"}
 
         final_results = []
         for idea in ideas:
+            # Matches the keys Llama generates
             name = idea.get('name')
             visual_prompt = idea.get('visual')
 
-            # Your existing logic remains untouched
+            # Your ComfyUI + R2 logic
             image_url = run_comfy_and_upload(visual_prompt)
 
-            # Pair them exactly as the frontend expects
+            # Return exactly what the Frontend is looking for
             final_results.append({
                 "name": name,
-                "url": image_url # Use 'url' to match your frontend logic
+                "url": image_url 
             })
 
-        return {"results": final_results} # Clean output
+        return {"results": final_results}
+    except Exception as e:
+        print(f"CRITICAL ERROR: {str(e)}")
+        # This prevents 'exit code 1' by catching the error
+        return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
     if wait_for_comfyui():
