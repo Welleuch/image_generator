@@ -8,6 +8,7 @@
 !requirements.txt
 !extra_model_paths.yaml
 !.dockerignore
+!start.sh
 
 # 3. FORCE IGNORE common heavy/hidden folders (Extra safety)
 .git/

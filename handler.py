@@ -1,5 +1,7 @@
 import os, requests, json, time, runpod, boto3, uuid
 from botocore.config import Config
+import socket
+import time
 
 # This pulls the /etc/comfy_workflow.json path from Docker
 WORKFLOW_PATH = os.getenv("WORKFLOW_PATH", "/etc/comfy_workflow.json")
@@ -11,6 +13,20 @@ def load_workflow():
     except FileNotFoundError:
         print(f"CRITICAL ERROR: Workflow file missing at {WORKFLOW_PATH}")
         raise
+
+def wait_for_service(host="127.0.0.1", port=8188, timeout=300):
+    """Wait for the ComfyUI server to become reachable."""
+    start_time = time.time()
+    while True:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                print(f"Connected to ComfyUI on {host}:{port}")
+                return True
+        except (socket.timeout, ConnectionRefusedError):
+            if time.time() - start_time > timeout:
+                raise Exception(f"Timeout: ComfyUI service not ready after {timeout}s")
+            print("Waiting for ComfyUI to start...")
+            time.sleep(2)
 
 def upload_to_r2(file_path, key):
     s3_client = boto3.client(
@@ -24,6 +40,10 @@ def upload_to_r2(file_path, key):
     return f"{os.environ.get('R2_PUBLIC_URL')}/{key}"
 
 def handler(job):
+    # Wait up to 5 minutes for the local server to start
+    wait_for_service("127.0.0.1", 8188) 
+    
+    client = ComfyUIClient()
     try:
         prompt_text = job['input'].get('visual_prompt')
         

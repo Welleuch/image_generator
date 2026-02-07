@@ -17,10 +17,14 @@ RUN cd custom_nodes && git clone https://github.com/city96/ComfyUI-GGUF.git
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir runpod requests boto3 gguf
 
-# Copy to the EXACT path defined above
+# 1. Copy all necessary files
 COPY workflow_api.json ${WORKFLOW_PATH}
 COPY handler.py /handler.py
 COPY extra_model_paths.yaml /comfyui/extra_model_paths.yaml
+COPY start.sh /start.sh
 
-# Launch
-CMD ["sh", "-c", "cd /comfyui && python main.py --listen 0.0.0.0 --port 8188 --highvram > /comfyui_logs.txt 2>&1 & python -u /handler.py"]
+# 2. Make the script executable
+RUN chmod +x /start.sh
+
+# 3. Launch using the script instead of a one-line shell command
+CMD ["/start.sh"]
