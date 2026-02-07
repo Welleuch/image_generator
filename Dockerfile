@@ -7,7 +7,15 @@ ENV PYTHONUNBUFFERED=1
 # Absolute path definition - THE single source of truth
 ENV WORKFLOW_PATH=/etc/comfy_workflow.json
 
-RUN apt-get update && apt-get install -y git libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender1 && apt-get clean
+RUN apt-get update && apt-get install -y \
+    git \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    curl && \
+    apt-get clean
 
 RUN git clone https://github.com/Comfy-Org/ComfyUI /comfyui
 WORKDIR /comfyui
