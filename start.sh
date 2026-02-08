@@ -3,7 +3,7 @@
 # 1. Start ComfyUI in the background
 # We use the path established in your Dockerfile WORKDIR
 cd /comfyui
-python main.py --listen 0.0.0.0 --port 8188 --highvram > /comfyui_logs.txt 2>&1 &
+python main.py --listen 0.0.0.0 --port 8188 --highvram 
 
 # 2. Wait for ComfyUI to be ready (Solid Solution)
 echo "Waiting for ComfyUI to start on port 8188..."
