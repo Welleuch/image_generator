@@ -88,6 +88,7 @@ def handler(job):
 
         return {"status": "success", "image_url": public_url}
     except Exception as e:
+        print(f"ERROR DURING EXECUTION: {str(e)}") 
         return {"error": str(e)}
 
 runpod.serverless.start({"handler": handler})
