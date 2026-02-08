@@ -42,8 +42,7 @@ def upload_to_r2(file_path, key):
 def handler(job):
     # Wait up to 5 minutes for the local server to start
     wait_for_service("127.0.0.1", 8188) 
-    
-    client = ComfyUIClient()
+
     try:
         prompt_text = job['input'].get('visual_prompt')
         
