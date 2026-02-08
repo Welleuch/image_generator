@@ -1,19 +1,20 @@
 #!/bin/bash
 
 # 1. Start ComfyUI in the background
-# We use the path established in your Dockerfile WORKDIR
+# We don't redirect to a file anymore so you can see errors in RunPod logs
 cd /comfyui
-python main.py --listen 0.0.0.0 --port 8188 --highvram 
+python main.py --listen 0.0.0.0 --port 8188 --highvram &
 
-# 2. Wait for ComfyUI to be ready (Solid Solution)
+# 2. Wait for the port to open
 echo "Waiting for ComfyUI to start on port 8188..."
-until curl -s http://127.0.0.1:8188/history > /dev/null; do
-  echo "ComfyUI is still loading models... retrying in 2s"
-  sleep 2
+while ! curl -s http://127.0.0.1:8188/history > /dev/null; do
+  echo "Still waiting for ComfyUI API..."
+  sleep 5
 done
 
-echo "✅ ComfyUI is READY. Starting RunPod Handler..."
+echo "✅ ComfyUI is READY."
 
 # 3. Start the RunPod handler
-# The handler is copied to the root (/) in your Dockerfile
+# Make sure this path matches where you COPY it in your Dockerfile
+echo "🚀 Starting RunPod Handler..."
 python -u /handler.py

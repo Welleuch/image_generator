@@ -1,9 +1,8 @@
 runpod:
     base_path: /runpod-volume/
-    checkpoints: ./
-    unet: ./
-    clip: ./
-    vae: ./
-    # Add explicit paths for GGUF models
-    gguf_unet: ./
-    gguf_clip: ./
+    checkpoints: checkpoints
+    unet: .
+    clip: .
+    vae: .
+    gguf_unet: .
+    gguf_clip: .
