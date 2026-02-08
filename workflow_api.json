@@ -81,7 +81,7 @@
   },
   "34:55": {
     "inputs": {
-      "clip_name": "qwen3-4b-q4_k_m.gguf",
+      "clip_name": "Qwen3-4B-Q4_K_M.gguf",
       "type": "lumina2"
     },
     "class_type": "CLIPLoaderGGUF",
